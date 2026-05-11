@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/GoogleDriveCli/GoogleDriveCli.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/GoogleDriveCli.Tests/GoogleDriveCli.Tests.csproj" />
+  </Folder>
+</Solution>
