@@ -1,3 +1,5 @@
+[![CI](https://github.com/PetkovskiM/GoogleDriveCliManager/actions/workflows/ci.yml/badge.svg)](https://github.com/PetkovskiM/GoogleDriveCliManager/actions/workflows/ci.yml)
+
 # Google Drive CLI Manager
 
 A command-line tool for managing your Google Drive from the terminal: synchronize files locally with parallel downloads, search across cloud and local state, and upload to specific folders.
