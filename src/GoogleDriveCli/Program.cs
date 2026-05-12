@@ -25,6 +25,8 @@ services.AddTransient<SyncCommandHandler>();
 services.AddTransient<SyncCommand>();
 services.AddTransient<SearchCommandHandler>();
 services.AddTransient<SearchCommand>();
+services.AddTransient<UploadCommandHandler>();
+services.AddTransient<UploadCommand>();
 
 await using var provider = services.BuildServiceProvider();
 
@@ -34,5 +36,6 @@ var rootCommand = new RootCommand(
 rootCommand.Subcommands.Add(provider.GetRequiredService<LoginCommand>());
 rootCommand.Subcommands.Add(provider.GetRequiredService<SyncCommand>());
 rootCommand.Subcommands.Add(provider.GetRequiredService<SearchCommand>());
+rootCommand.Subcommands.Add(provider.GetRequiredService<UploadCommand>());
 
 return await rootCommand.Parse(args).InvokeAsync();
