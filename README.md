@@ -4,7 +4,7 @@
 
 A command-line tool for managing your Google Drive from the terminal: synchronize files locally with parallel downloads, search across cloud and local state, and upload to specific folders.
 
-> **Status:** authentication, parallel sync, and search work. `upload` ships in a subsequent branch.
+> **Status:** all four commands (`login`, `sync`, `search`, `upload`) are implemented.
 
 ## Prerequisites
 
@@ -159,6 +159,37 @@ Found 4 result(s) for "notes":
 │ Project Notes     │ document │ —      │ Work          │ —                │
 ╰───────────────────┴──────────┴────────┴───────────────┴──────────────────╯
 ```
+
+## Upload
+
+```bash
+dotnet run --project src/GoogleDriveCli -- upload <local-path> <drive-path>
+```
+
+Uploads a local file to a specific folder in Google Drive. If any segment of the destination path doesn't exist, it is created automatically — you'll see a `Creating folder: <name>` line for each one.
+
+**Arguments:**
+
+| Argument | Description |
+|---|---|
+| `local-path` | Path to the file on your machine. Must exist; otherwise the command exits with a clear error. |
+| `drive-path` | Destination folder in Drive. Use `/` as the segment separator (backslashes are accepted and normalized). Pass `""` or `"/"` to upload to My Drive root. |
+
+**Examples:**
+
+```bash
+# Upload to a nested folder; "Reports" is created if missing
+dotnet run --project src/GoogleDriveCli -- upload C:\reports\Q1.xlsx "Work/Reports"
+
+# Upload to My Drive root
+dotnet run --project src/GoogleDriveCli -- upload .\notes.txt ""
+```
+
+**Behavior notes:**
+
+- **Drive file name** = the local filename. There is no rename flag.
+- **Name collisions** in the target folder do not raise an error — Drive permits multiple files with the same name (each has its own immutable file ID). The upload proceeds and creates a new Drive file.
+- **MIME type** is sent as `application/octet-stream`; Drive infers the displayed type from the filename extension.
 
 ## Test
 
