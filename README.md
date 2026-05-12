@@ -4,7 +4,7 @@
 
 A command-line tool for managing your Google Drive from the terminal: synchronize files locally with parallel downloads, search across cloud and local state, and upload to specific folders.
 
-> **Status:** authentication and parallel sync work. `search` and `upload` ship in subsequent branches.
+> **Status:** authentication, parallel sync, and search work. `upload` ships in a subsequent branch.
 
 ## Prerequisites
 
@@ -124,6 +124,40 @@ Syncing  ━━━━━━━━━━━━━━━━━━━━━━━�
 │ Total bytes          │ 12.4 MB   │
 │ Elapsed              │ 00:00:09  │
 ╰──────────────────────┴───────────╯
+```
+
+## Search
+
+```bash
+dotnet run --project src/GoogleDriveCli -- search <query>
+```
+
+Queries Google Drive itself (not just the local cache) by file or folder name, then renders every match in a table with its local sync status. This is the spec's "Find everything available in the cloud, mark what's not yet on disk" requirement.
+
+Each row's **Status** column is one of:
+
+| Status | Meaning |
+|---|---|
+| `Downloaded` | A manifest entry exists for this file **and** the local copy is still on disk. |
+| `[Not Downloaded]` | The file matches in Drive but isn't on disk locally (either never synced, or the local copy was deleted). |
+| `—` | Folders and Google-native files (Docs/Sheets/Slides) — these aren't downloaded in our model, so the status is not applicable. |
+
+The "manifest entry **and** local file still exists" check is the hybrid state-management approach the task spec asks about: the manifest is the primary source of truth, but each lookup also verifies the local file is still there, so a user who manually deletes from `Downloads/` still sees an accurate Status.
+
+### Example
+
+The **Location** column shows each result's parent folder in Drive, so files with the same name in different folders are immediately distinguishable.
+
+```
+Found 4 result(s) for "notes":
+╭───────────────────┬──────────┬────────┬───────────────┬──────────────────╮
+│ Name              │ Type     │ Size   │ Location      │ Status           │
+├───────────────────┼──────────┼────────┼───────────────┼──────────────────┤
+│ Notes             │ Folder   │ —      │ My Drive      │ —                │
+│ meeting-notes.txt │ txt      │ 2.1 KB │ Work/proj-a   │ Downloaded       │
+│ trip-notes.md     │ md       │ 4.7 KB │ Personal      │ [Not Downloaded] │
+│ Project Notes     │ document │ —      │ Work          │ —                │
+╰───────────────────┴──────────┴────────┴───────────────┴──────────────────╯
 ```
 
 ## Test

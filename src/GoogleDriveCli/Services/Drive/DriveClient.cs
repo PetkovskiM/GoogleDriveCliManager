@@ -15,6 +15,7 @@ namespace GoogleDriveCli.Services.Drive;
 public sealed class DriveClient : IDriveClient, IDisposable
 {
     private const string ApplicationName = "GoogleDriveCliManager";
+    private const string FileFields = "nextPageToken, files(id, name, mimeType, size, modifiedTime, parents)";
 
     private readonly IGoogleAuthService _authService;
     private readonly SemaphoreSlim _initLock = new(1, 1);
@@ -22,7 +23,34 @@ public sealed class DriveClient : IDriveClient, IDisposable
 
     public DriveClient(IGoogleAuthService authService) => _authService = authService;
 
-    public async IAsyncEnumerable<DriveFile> ListAllAsync(
+    public IAsyncEnumerable<DriveFile> ListAllAsync(CancellationToken cancellationToken)
+        => EnumerateAsync("trashed = false", cancellationToken);
+
+    public IAsyncEnumerable<DriveFile> ListFoldersAsync(CancellationToken cancellationToken)
+        => EnumerateAsync("mimeType = 'application/vnd.google-apps.folder' and trashed = false", cancellationToken);
+
+    public IAsyncEnumerable<DriveFile> SearchAsync(string query, CancellationToken cancellationToken)
+    {
+        // Drive's query language wraps strings in single quotes (`name contains 'foo'`).
+        // Single quotes inside the value must be escaped with a backslash.
+        var escaped = query.Replace("'", @"\'");
+        return EnumerateAsync($"name contains '{escaped}' and trashed = false", cancellationToken);
+    }
+
+    public async Task DownloadAsync(string fileId, Stream destination, CancellationToken cancellationToken)
+    {
+        var service = await GetServiceAsync(cancellationToken);
+        var request = service.Files.Get(fileId);
+        await request.DownloadAsync(destination, cancellationToken);
+    }
+
+    /// <summary>
+    /// Shared paginated enumerator. Both <see cref="ListAllAsync"/> and
+    /// <see cref="SearchAsync"/> differ only in the <c>q</c> filter passed
+    /// to Drive — the paging, field selection, and DTO mapping are identical.
+    /// </summary>
+    private async IAsyncEnumerable<DriveFile> EnumerateAsync(
+        string driveQuery,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var service = await GetServiceAsync(cancellationToken);
@@ -32,9 +60,9 @@ public sealed class DriveClient : IDriveClient, IDisposable
         {
             var request = service.Files.List();
             request.PageSize = 1000;
-            request.Fields = "nextPageToken, files(id, name, mimeType, size, modifiedTime, parents)";
+            request.Fields = FileFields;
             request.PageToken = pageToken;
-            request.Q = "trashed = false";
+            request.Q = driveQuery;
 
             var response = await request.ExecuteAsync(cancellationToken);
             foreach (var f in response.Files)
@@ -50,13 +78,6 @@ public sealed class DriveClient : IDriveClient, IDisposable
 
             pageToken = response.NextPageToken;
         } while (!string.IsNullOrEmpty(pageToken));
-    }
-
-    public async Task DownloadAsync(string fileId, Stream destination, CancellationToken cancellationToken)
-    {
-        var service = await GetServiceAsync(cancellationToken);
-        var request = service.Files.Get(fileId);
-        await request.DownloadAsync(destination, cancellationToken);
     }
 
     /// <summary>
