@@ -4,7 +4,7 @@
 
 A command-line tool for managing your Google Drive from the terminal: synchronize files locally with parallel downloads, search across cloud and local state, and upload to specific folders.
 
-> **Status:** authentication works. The functional commands (`sync`, `search`, `upload`) ship in subsequent branches.
+> **Status:** authentication and parallel sync work. `search` and `upload` ship in subsequent branches.
 
 ## Prerequisites
 
@@ -84,6 +84,47 @@ Token storage location (DPAPI-encrypted on Windows; per-user readable on macOS/L
 | macOS / Linux | `~/.config/GoogleDriveCliManager/tokens/` |
 
 To forget the credential and force re-authentication, delete that directory.
+
+## Sync
+
+```bash
+dotnet run --project src/GoogleDriveCli -- sync
+```
+
+Downloads every file from your Google Drive into a local `Downloads/` folder at the repository root. The folder structure mirrors your Drive — a file at `My Drive/Work/proj-a/notes.txt` lands at `Downloads/Work/proj-a/notes.txt`.
+
+| Aspect | Behaviour |
+|---|---|
+| **Parallelism** | `Parallel.ForEachAsync` with `MaxDegreeOfParallelism = 8`. The work is I/O-bound (HTTP requests), not CPU-bound, so the limit is not `Environment.ProcessorCount` — it is chosen to keep the network pipeline saturated while staying well under Google's quota of 1000 requests / 100 seconds per user. |
+| **Thread safety** | Statistics use `Interlocked` primitives on 64-bit counter fields plus a `ConcurrentBag` for failure records — completely lock-free. The manifest uses a `ConcurrentDictionary` so worker tasks can update it without external synchronization. |
+| **Resilience** | Each download is wrapped in `try/catch`; one failed file does not abort the sync. Transient HTTP errors are retried automatically by the Google SDK's built-in exponential-backoff policy. |
+| **Incremental** | A JSON manifest at `%APPDATA%\GoogleDriveCliManager\manifest.json` records every successful download. On subsequent runs, files whose Drive `modifiedTime` matches the manifest entry (and whose local copy is still present) are skipped. |
+| **Cancellation** | Ctrl+C cleanly stops the sync. The manifest is persisted in a `finally` block, so a re-run resumes from where the previous one stopped. |
+| **Native Google files** | Docs, Sheets, Slides, and Forms have no direct binary content (they live in Google's proprietary format) and would require `Files.Export` to download as Office formats. To keep scope focused, this implementation skips them with a one-line warning. |
+
+### Flags
+
+| Flag | Description |
+|---|---|
+| `--dry-run` | List what would be downloaded without writing any files. Useful before a large sync. |
+
+### Example output
+
+```
+Listing files from Google Drive...
+Found 42 downloadable file(s); skipping 3 Google native file(s).
+Downloads root: D:\GIT\GoogleDriveCliManager\Downloads
+Syncing  ━━━━━━━━━━━━━━━━━━━━━━━━━━ 100% 00:00:00
+╭──────────────────────┬───────────╮
+│ Metric               │ Value     │
+├──────────────────────┼───────────┤
+│ Downloaded           │ 42        │
+│ Skipped (up-to-date) │ 0         │
+│ Failed               │ 0         │
+│ Total bytes          │ 12.4 MB   │
+│ Elapsed              │ 00:00:09  │
+╰──────────────────────┴───────────╯
+```
 
 ## Test
 
