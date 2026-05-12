@@ -444,6 +444,9 @@ tokens/
 # Local sync state manifest
 manifest.json
 
+# Downloaded files from Google Drive — local cache, never committed
+Downloads/
+
 # Local environment overrides
 .env
 .env.local
