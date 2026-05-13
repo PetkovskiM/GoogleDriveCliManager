@@ -4,6 +4,7 @@ using GoogleDriveCli.Services.Drive;
 using GoogleDriveCli.Services.Local;
 using GoogleDriveCli.Services.Manifest;
 using Moq;
+using Spectre.Console.Testing;
 
 namespace GoogleDriveCli.Tests;
 
@@ -17,6 +18,7 @@ public class SyncCommandHandlerTests : IDisposable
 {
     private readonly string _downloadsDir;
     private readonly string _manifestPath;
+    private readonly TestConsole _console = new();
 
     public SyncCommandHandlerTests()
     {
@@ -39,7 +41,7 @@ public class SyncCommandHandlerTests : IDisposable
 
         var localStore = new LocalFileStore(_downloadsDir);
         var manifest = new JsonManifestStore(_manifestPath);
-        var handler = new SyncCommandHandler(driveClient.Object, localStore, manifest);
+        var handler = new SyncCommandHandler(driveClient.Object, localStore, manifest, _console);
 
         // ACT
         var exit = await handler.HandleAsync(dryRun: false, CancellationToken.None);
@@ -71,7 +73,7 @@ public class SyncCommandHandlerTests : IDisposable
 
         var localStore = new LocalFileStore(_downloadsDir);
         var manifest = new JsonManifestStore(_manifestPath);
-        var handler = new SyncCommandHandler(driveClient.Object, localStore, manifest);
+        var handler = new SyncCommandHandler(driveClient.Object, localStore, manifest, _console);
 
         // ACT
         var exit = await handler.HandleAsync(dryRun: false, CancellationToken.None);
@@ -94,7 +96,7 @@ public class SyncCommandHandlerTests : IDisposable
 
         var localStore = new LocalFileStore(_downloadsDir);
         var manifest = new JsonManifestStore(_manifestPath);
-        var handler = new SyncCommandHandler(driveClient.Object, localStore, manifest);
+        var handler = new SyncCommandHandler(driveClient.Object, localStore, manifest, _console);
 
         // ACT
         var exit = await handler.HandleAsync(dryRun: true, CancellationToken.None);
@@ -118,13 +120,13 @@ public class SyncCommandHandlerTests : IDisposable
         var firstClient = MakeMockClient(files);
         var localStore = new LocalFileStore(_downloadsDir);
         var firstManifest = new JsonManifestStore(_manifestPath);
-        await new SyncCommandHandler(firstClient.Object, localStore, firstManifest)
+        await new SyncCommandHandler(firstClient.Object, localStore, firstManifest, _console)
             .HandleAsync(dryRun: false, CancellationToken.None);
 
         // SECOND RUN — fresh handler + fresh manifest store (loads from disk)
         var secondClient = MakeMockClient(files);
         var secondManifest = new JsonManifestStore(_manifestPath);
-        var handler = new SyncCommandHandler(secondClient.Object, localStore, secondManifest);
+        var handler = new SyncCommandHandler(secondClient.Object, localStore, secondManifest, _console);
 
         // ACT
         await handler.HandleAsync(dryRun: false, CancellationToken.None);

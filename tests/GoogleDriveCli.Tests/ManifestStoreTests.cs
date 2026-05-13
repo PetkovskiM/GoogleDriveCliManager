@@ -53,6 +53,22 @@ public class ManifestStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task LoadAsync_WhenManifestIsCorruptedJson_StartsWithEmptyStoreInsteadOfThrowing()
+    {
+        // ARRANGE — write garbage where a valid JSON array is expected
+        await File.WriteAllTextAsync(_tempPath, "{ this is not [[[ valid json");
+
+        var store = new JsonManifestStore(_tempPath);
+
+        // ACT — must not throw
+        await store.LoadAsync(CancellationToken.None);
+
+        // ASSERT — gracefully fell back to an empty manifest
+        Assert.Empty(store.AllEntries);
+        Assert.Null(store.TryGet("anything"));
+    }
+
+    [Fact]
     public void AddOrUpdate_SecondCallWithSameId_OverwritesPreviousEntry()
     {
         var store = new JsonManifestStore(_tempPath);
