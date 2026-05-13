@@ -1,3 +1,4 @@
+using GoogleDriveCli.Common;
 using GoogleDriveCli.Models;
 using GoogleDriveCli.Services.Drive;
 using GoogleDriveCli.Services.Local;
@@ -120,12 +121,5 @@ public sealed class SearchCommandHandler
         return string.IsNullOrEmpty(ext) ? "file" : ext;
     }
 
-    private static string FormatSize(long? bytes)
-    {
-        if (bytes is null) return "—";
-        if (bytes < 1024) return $"{bytes} B";
-        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
-        if (bytes < 1024L * 1024 * 1024) return $"{bytes / (1024.0 * 1024):F1} MB";
-        return $"{bytes / (1024.0 * 1024 * 1024):F2} GB";
-    }
+    private static string FormatSize(long? bytes) => bytes is null ? "—" : ByteFormatter.Format(bytes.Value);
 }

@@ -1,3 +1,4 @@
+using GoogleDriveCli.Common;
 using GoogleDriveCli.Models;
 using GoogleDriveCli.Services.Drive;
 using GoogleDriveCli.Services.Local;
@@ -39,19 +40,25 @@ public sealed class SyncCommandHandler
     private readonly IDriveClient _driveClient;
     private readonly ILocalFileStore _localStore;
     private readonly IManifestStore _manifest;
+    private readonly IAnsiConsole _console;
 
-    public SyncCommandHandler(IDriveClient driveClient, ILocalFileStore localStore, IManifestStore manifest)
+    public SyncCommandHandler(
+        IDriveClient driveClient,
+        ILocalFileStore localStore,
+        IManifestStore manifest,
+        IAnsiConsole console)
     {
         _driveClient = driveClient;
         _localStore = localStore;
         _manifest = manifest;
+        _console = console;
     }
 
     public async Task<int> HandleAsync(bool dryRun, CancellationToken cancellationToken)
     {
         await _manifest.LoadAsync(cancellationToken);
 
-        AnsiConsole.MarkupLine("[bold]Listing files from Google Drive...[/]");
+        _console.MarkupLine("[bold]Listing files from Google Drive...[/]");
         var allFiles = await CollectAsync(_driveClient.ListAllAsync(cancellationToken));
 
         var folderMap = allFiles
@@ -60,27 +67,27 @@ public sealed class SyncCommandHandler
         var downloadable = allFiles.Where(f => !f.IsFolder && !f.IsGoogleNative).ToList();
         var nativeSkipped = allFiles.Count(f => f.IsGoogleNative);
 
-        AnsiConsole.MarkupLine(
+        _console.MarkupLine(
             $"Found [green]{downloadable.Count}[/] downloadable file(s); " +
             $"skipping [yellow]{nativeSkipped}[/] Google native file(s).");
 
         if (downloadable.Count == 0)
         {
-            AnsiConsole.MarkupLine("[yellow]Nothing to download.[/]");
+            _console.MarkupLine("[yellow]Nothing to download.[/]");
             return 0;
         }
 
         if (dryRun)
-            AnsiConsole.MarkupLine("[bold yellow]Dry run — no files will be written.[/]");
+            _console.MarkupLine("[bold yellow]Dry run — no files will be written.[/]");
         else
-            AnsiConsole.MarkupLine($"Downloads root: [cyan]{Markup.Escape(_localStore.DownloadsRoot)}[/]");
+            _console.MarkupLine($"Downloads root: [cyan]{Markup.Escape(_localStore.DownloadsRoot)}[/]");
 
         var stats = new SyncStatistics();
         stats.Start();
 
         try
         {
-            await AnsiConsole.Progress()
+            await _console.Progress()
                 .Columns(
                     new TaskDescriptionColumn(),
                     new ProgressBarColumn(),
@@ -172,7 +179,7 @@ public sealed class SyncCommandHandler
         stats.RecordSuccess(file.Size ?? 0);
     }
 
-    private static void PrintSummary(SyncStatistics stats, bool dryRun)
+    private void PrintSummary(SyncStatistics stats, bool dryRun)
     {
         var table = new Table()
             .Border(TableBorder.Rounded)
@@ -182,30 +189,22 @@ public sealed class SyncCommandHandler
         table.AddRow(dryRun ? "Would download" : "Downloaded", stats.Success.ToString("N0"));
         table.AddRow("Skipped (up-to-date)", stats.Skipped.ToString("N0"));
         table.AddRow("Failed", stats.Failure.ToString("N0"));
-        table.AddRow("Total bytes", FormatBytes(stats.TotalBytes));
+        table.AddRow("Total bytes", ByteFormatter.Format(stats.TotalBytes));
         table.AddRow("Elapsed", stats.Elapsed.ToString(@"hh\:mm\:ss\.fff"));
 
-        AnsiConsole.Write(table);
+        _console.Write(table);
 
         if (stats.Failure > 0)
         {
-            AnsiConsole.MarkupLine($"[red]{stats.Failure} file(s) failed:[/]");
+            _console.MarkupLine($"[red]{stats.Failure} file(s) failed:[/]");
             foreach (var failure in stats.Failures.Take(10))
             {
-                AnsiConsole.MarkupLine(
+                _console.MarkupLine(
                     $"  [red]x[/] {Markup.Escape(failure.FileName)}: {Markup.Escape(failure.Reason)}");
             }
             if (stats.Failure > 10)
-                AnsiConsole.MarkupLine($"  [grey]... and {stats.Failure - 10} more[/]");
+                _console.MarkupLine($"  [grey]... and {stats.Failure - 10} more[/]");
         }
-    }
-
-    private static string FormatBytes(long bytes)
-    {
-        if (bytes < 1024) return $"{bytes} B";
-        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
-        if (bytes < 1024L * 1024 * 1024) return $"{bytes / (1024.0 * 1024):F1} MB";
-        return $"{bytes / (1024.0 * 1024 * 1024):F2} GB";
     }
 
     private static async Task<List<T>> CollectAsync<T>(IAsyncEnumerable<T> source)

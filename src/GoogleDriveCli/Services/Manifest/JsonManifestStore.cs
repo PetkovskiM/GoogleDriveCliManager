@@ -45,12 +45,27 @@ public sealed class JsonManifestStore : IManifestStore
             return;
         }
 
-        await using var stream = File.OpenRead(_path);
-        var list = await JsonSerializer.DeserializeAsync<List<ManifestEntry>>(
-            stream, cancellationToken: cancellationToken);
+        try
+        {
+            await using var stream = File.OpenRead(_path);
+            var list = await JsonSerializer.DeserializeAsync<List<ManifestEntry>>(
+                stream, cancellationToken: cancellationToken);
 
-        _entries = new ConcurrentDictionary<string, ManifestEntry>(
-            (list ?? new()).Select(e => new KeyValuePair<string, ManifestEntry>(e.FileId, e)));
+            _entries = new ConcurrentDictionary<string, ManifestEntry>(
+                (list ?? new()).Select(e => new KeyValuePair<string, ManifestEntry>(e.FileId, e)));
+        }
+        catch (Exception ex) when (ex is JsonException or IOException)
+        {
+            // Corrupted manifest (interrupted write, disk error, hand-edited file).
+            // Fall back to empty in-memory state — the next sync rebuilds it from
+            // Drive and overwrites the file on Save. Surface the warning so the
+            // user can correlate the next "fully re-downloaded everything" sync
+            // with the cause.
+            Console.Error.WriteLine(
+                $"Warning: manifest at '{_path}' is unreadable ({ex.Message}). " +
+                "Starting with an empty manifest; the next sync will rebuild it.");
+            _entries = new ConcurrentDictionary<string, ManifestEntry>();
+        }
     }
 
     public async Task SaveAsync(CancellationToken cancellationToken)
